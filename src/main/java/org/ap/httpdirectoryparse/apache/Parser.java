@@ -26,11 +26,26 @@ public class Parser {
 
     protected List<String> skipProperties;
     private String directoryUrl;
+    private List<String> extensions;
+
+    public Parser(List<String> skipProperties, String directoryUrl, List<String> extensions) {
+        this.skipProperties = skipProperties;
+        this.directoryUrl = directoryUrl;
+        this.extensions = extensions;
+
+    }
+
+    public Parser(String directoryUrl) {
+        this.directoryUrl = directoryUrl;
+    }
 
     /**
      * @return the skipProperties
      */
     public List<String> getSkipProperties() {
+        if (null == skipProperties) {
+            this.skipProperties = new ArrayList<String>();
+        }
         return skipProperties;
     }
 
@@ -38,27 +53,36 @@ public class Parser {
      * @param skipProperties the skipProperties to set
      */
     public void setSkipProperties(List<String> skipProperties) {
-        if (null == skipProperties) {
-            this.skipProperties = new ArrayList<String>();
-        }
+
         this.skipProperties = skipProperties;
     }
 
+    /**
+     * Parses the html at the URL passed recursively and returns the paths(urls) containing the extensions in extensions
+     * list
+     *
+     * @return list containing he paths(urls) containing the extensions in extensions list
+     * @throws KeyManagementException
+     * @throws NoSuchAlgorithmException
+     * @throws IOException
+     */
     public List<String> parse() throws KeyManagementException, NoSuchAlgorithmException, IOException {
         List<String> paths = new ArrayList<>();
-        parseAndAddFilePaths(this.directoryUrl, "json", null, paths);
+        System.out.println("skip: " + skipProperties);
+        parseAndAddFilePaths(this.directoryUrl, null, paths);
         return paths;
     }
 
-    private Elements getList(String url) throws KeyManagementException, NoSuchAlgorithmException, IOException {
+    protected Elements getList(String url) throws KeyManagementException, NoSuchAlgorithmException, IOException {
         enableSSLSocket();
         Document doc = Jsoup.connect(url).ignoreContentType(true).get();
         return doc.select("a[href]");
 
     }
 
-    private void parseAndAddFilePaths(String url, String extension, Element link, List<String> paths) throws KeyManagementException, NoSuchAlgorithmException, IOException {
-        if (null != link && link.attr(LINK_ELEMENT).contains(extension)) {
+    private void parseAndAddFilePaths(String url, Element link, List<String> paths) throws KeyManagementException, NoSuchAlgorithmException, IOException {
+        if (null != link && hasExtension(link.attr(LINK_ELEMENT))) {
+            System.out.println("adding link: " + link.attr(LINK_ELEMENT));
             paths.add(link.attr(LINK_ELEMENT));
             return;
         }
@@ -66,11 +90,12 @@ public class Parser {
         Elements temp = null == link ? getList(url) : getList(link.attr(LINK_ELEMENT));
 
         for (Element element : temp) {
-            if (canSkip(element.attr(LINK_ELEMENT))) {
-                System.out.println("link:" + element.attr(LINK_ELEMENT));
+
+            if (canSkip(element.text()) || canSkip(element.attr(LINK_ELEMENT))) {
                 continue;
             }
-            parseAndAddFilePaths(url, extension, element, paths);
+            System.out.println("currently accessing: " + element.attr(LINK_ELEMENT));
+            parseAndAddFilePaths(null, element, paths);
         }
 
     }
@@ -104,6 +129,39 @@ public class Parser {
     }
 
     private boolean canSkip(String name) {
-        return this.skipProperties.contains(name);
+
+        for (String skipProperty : skipProperties) {
+            if (name.trim().contains(skipProperty)) {
+                System.out.println("skipped name: " + name);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return the extensions
+     */
+    public List<String> getExtensions() {
+        if (null == extensions) {
+            this.extensions = new ArrayList<>();
+        }
+        return extensions;
+    }
+
+    /**
+     * @param extensions the extensions to set
+     */
+    public void setExtensions(List<String> extensions) {
+        this.extensions = extensions;
+    }
+
+    private boolean hasExtension(String extension) {
+        for (String extensionName : extensions) {
+            if (extension.contains(extensionName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
